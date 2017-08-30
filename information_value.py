@@ -8,7 +8,7 @@ from sklearn.utils.multiclass import type_of_target
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-class WOE:
+class WOE(object):
     #class method
     @staticmethod
     def regroup(df,column,split_points):
@@ -27,17 +27,17 @@ class WOE:
     
     #find columns including missing values
     def find_na_column(self,df):
-        miss_columns = {}
-        na_rate = [] 
-        a = {}
+        miss_columns = []
         for column in df:
-            na_rate.append(1.0*sum(pd.isnull(df[column]))/len(df[column]))
-            a = dict(zip(df.columns,na_rate))      
-        for key in a:
-            if(a[key]) > 0:
-                miss_columns[key] = a[key]
-        miss_columns = sorted(miss_columns.items(), key=lambda d:d[1], reverse = True) 
-        return miss_columns 
+            if sum(pd.isnull(df[column])) > 0:
+                miss_columns.append(column)
+        return miss_columns
+    
+    #return columns which NA rate > 0
+    def NA_rate(self,df):
+        NA_df = (df.isnull().sum()/df.shape[0]).reset_index()
+        NA_df.columns = ['variables','NA_rate']
+        return NA_df[NA_df['NA_rate']>0].sort_values(by='NA_rate',ascending=False)
         
     def woe(self, X, y, event=1, category_cols = []):
         #are there any columns including missing values
@@ -108,6 +108,7 @@ class WOE:
             for k in self.woe_dicts[column].keys():
             #遍历这个column的woe_dict的每一个key
                 self.X_woe[column][self.X_woe[column] == k] = self.woe_dicts[column][k][0]
+        self.X_woe = self.X_woe.astype(np.float32)
         return self
 
     def combined_iv(self, X, y, masks, event=1):
@@ -248,7 +249,7 @@ class WOE:
         x = range(len(counts))
         fig, ax1 = plt.subplots(figsize=(12,8))
         my_palette = sns.color_palette(n_colors=100)
-        sns.barplot(x,counts,ax=ax1)
+        sns.barplot(x,counts,ax=ax1,palette=sns.husl_palette(n_colors=20,l=.7))
         plt.xticks(x,tick_label,rotation = 30,fontsize=12)
         plt.title(column,fontsize=18)
         ax1.set_ylabel('count',fontsize=15)
@@ -267,6 +268,34 @@ class WOE:
               y0 - 0,
               y1 * 1.1))
         plt.show()
+        
+    def save_br_chart(self, column, path):
+        if type(self.woe_dicts[column].items()[0][0]) == str:
+            woe_lists = sorted(self.woe_dicts[column].items(), key = self.sort_dict)
+        else:
+            woe_lists = sorted(self.woe_dicts[column].items(),key = lambda item:item[0])
+        tick_label = [i[0] for i in woe_lists]
+        counts = [i[1][1] for i in woe_lists]
+        br_data = [i[1][2] for i in woe_lists]
+        x = range(len(counts))
+        fig, ax1 = plt.subplots(figsize=(12,8))
+        my_palette = sns.color_palette(n_colors=100)
+        sns.barplot(x,counts,ax=ax1,palette=sns.husl_palette(n_colors=20,l=.7))
+        plt.xticks(x,tick_label,rotation = 30,fontsize=12)
+        plt.title(column,fontsize=18)
+        ax1.set_ylabel('count',fontsize=15)
+        ax1.tick_params('y',labelsize=12)
+        ax2 = ax1.twinx()
+        ax2.plot(x,br_data,color='black')
+        ax2.set_ylabel('bad rate',fontsize=15)
+        ax2.tick_params('y',labelsize=12)
+        plot_margin = 0.25
+        x0, x1, y0, y1 = ax1.axis()
+        ax1.axis((x0 - plot_margin,
+              x1 + plot_margin,
+              y0 - 0,
+              y1 * 1.1))
+        plt.savefig(path)
         
 
     @property
